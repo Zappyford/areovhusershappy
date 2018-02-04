@@ -6,14 +6,14 @@ import edu.stanford.nlp.ling.CoreAnnotations
 import edu.stanford.nlp.neural.rnn.RNNCoreAnnotations
 import edu.stanford.nlp.pipeline.{Annotation, StanfordCoreNLP}
 import edu.stanford.nlp.sentiment.SentimentCoreAnnotations
-import org.slf4j.LoggerFactory
+import org.apache.log4j.Logger
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 
 object CoreNLPSentimentAnalyzer {
-  val logger = LoggerFactory.getLogger(CoreNLPSentimentAnalyzer.getClass)
-  lazy val pipeline = {
+
+  lazy val pipeline: StanfordCoreNLP = {
     val props = new Properties()
     props.setProperty("annotators", "tokenize, ssplit, pos, lemma, parse, sentiment")
     new StanfordCoreNLP(props)

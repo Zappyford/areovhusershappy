@@ -1,10 +1,14 @@
-package main.scala.org.zappy.ovh.happiness
+package org.zappy.ovh.happiness.main
 
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
 
-import org.apache.log4j.{Logger, PropertyConfigurator}
+import org.apache.log4j.Logger
+import org.apache.spark.mllib.classification.NaiveBayesModel
+import org.zappy.ovh.happiness.mllib.MLlibSentimentAnalyzer
 import org.zappy.ovh.happiness.stanfordcorenlp.CoreNLPSentimentAnalyzer
+import org.zappy.ovh.happiness.utils.{FileUtils, PropertiesLoader, SparkUtils}
+import twitter4j.conf.ConfigurationBuilder
 import twitter4j.{Query, TwitterFactory}
 
 import scala.collection.JavaConversions._
@@ -12,30 +16,40 @@ import scala.collection.JavaConversions._
 object TweetSentimentAnalysis extends App {
 
   val logger = Logger.getLogger(TweetSentimentAnalysis.getClass)
-  PropertyConfigurator.configure("log4j.properties")
-  logger.info("Is OVH support happy ? Let's find out !")
+  logger.info("Are OVH users happy ? Let's find out !")
+
   val today = Calendar.getInstance.getTimeInMillis
   //Number of milliseconds in a week
   val oneWeekMilli = 604800000
   //Calculate the date one week ago
   val oneWeekAgo = today - oneWeekMilli
   val dateOneWeekAgo = new SimpleDateFormat("yyyy-MM-dd").format(new Date(oneWeekAgo))
+
   //With Twitter4J, we call the Twitter API
-  /*val cb = new ConfigurationBuilder()
-  cb.setDebugEnabled(false)
-    .setOAuthConsumerKey("HozJ56uUlbgNuYlk9o7ZT6yev")
-    .setOAuthConsumerSecret("W1doi2wKxLSYOsHIfqrTcWyyp9sPKpUsJAiqStmMv5fKdBUrv9")
-    .setOAuthAccessToken("3081500387-bqweaCzXhKmDQsaOYPKUE4dZ930w0Lgo3JbzJQy")
-    .setOAuthAccessTokenSecret("4v5QpSL4PYAmCsT5CQp7YUjrYR32OByy16QsHerzA71aO")
-  val twitter = new TwitterFactory(cb.build()).getInstance()*/
-  //We search all the tweets mentioning any ovh support account
   logger.info("Setting up the Twitter wrapper...")
-  val twitter = new TwitterFactory().getInstance()
+  val cb = new ConfigurationBuilder()
+  cb.setDebugEnabled(PropertiesLoader.debugTwitter4j)
+    .setOAuthConsumerKey(PropertiesLoader.consumerKey)
+    .setOAuthConsumerSecret(PropertiesLoader.consumerSecret)
+    .setOAuthAccessToken(PropertiesLoader.accessToken)
+    .setOAuthAccessTokenSecret(PropertiesLoader.accessTokenSecret)
+  val twitter = new TwitterFactory(cb.build()).getInstance()
+
+  logger.info("Setting up the Spark environment...")
+  //Get the Spark environment in order to call the ML model
+  val sc = SparkUtils.createSparkContext()
+  //Load Naive Bayes Model from the path specified inb the configuration file
+  val naiveBayesModel = NaiveBayesModel.load(sc, PropertiesLoader.naiveBayesModelPath)
+  //Load the stop words list (one for each languages)
+  val stopWordsList = sc.broadcast(FileUtils.loadFile(PropertiesLoader.englishStopWords).toList)
+
+  //We search all the tweets mentioning any ovh support account
   logger.info("Searching for the tweets about @ovh_support_ :")
   val query = new Query("ovh_support_")
   query.setSince(dateOneWeekAgo)
   val tweets = twitter.search(query).getTweets
   logger.info(tweets.size() + " tweets were find !")
+
   //Show numbers of tweets by country for the current day
   val tweetsToday = tweets.filter(_.getCreatedAt.toString <= Calendar.getInstance().getTime.toString)
   logger.info("For today, we have : ")
@@ -43,22 +57,26 @@ object TweetSentimentAnalysis extends App {
     e =>
       logger.info("For the language : " + e._1 + " we have " + e._2.length + " tweets !")
   )
+
   //Show sentiment for the day
   logger.info("The sentiments for today are :")
   tweetsToday.foreach(
     e =>
       if (e.getLang == "en") {
+        val sentiment = CoreNLPSentimentAnalyzer.computeSentiment(e.getText)
         logger.info("The tweet's content : " + e.getText)
-        logger.info("The sentiment found : " + CoreNLPSentimentAnalyzer.computeSentiment(e.getText))
+        logger.info("The sentiment found : " + sentiment)
+        logger.info("The sentiment found : " + MLlibSentimentAnalyzer.computeSentiment(e.getText, stopWordsList, naiveBayesModel ))
       }
   )
-  //  //Show numbers of tweets by country for the week and show the tendency
+
+  //Show numbers of tweets by country for the week and show the tendency
   var weekSentimentScore = 0
   var weekSentiment = ""
   tweets
+      .filter(_.getLang == "en")
     .map(
-      e =>
-        CoreNLPSentimentAnalyzer.computeSentiment(e.getText)
+      e => CoreNLPSentimentAnalyzer.computeSentiment(e.getText)
     )
     .groupBy(e => e)
     .map(e => (e._1, e._2.length))
