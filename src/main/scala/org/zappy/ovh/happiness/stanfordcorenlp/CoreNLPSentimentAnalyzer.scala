@@ -19,6 +19,12 @@ object CoreNLPSentimentAnalyzer {
     new StanfordCoreNLP(props)
   }
 
+  /**
+    * Predicts sentiment of the tweet text with StanfordNLP passed after removing the stop words.
+    *
+    * @param text          -- Complete text of a tweet.
+    * @return String Sentiment of the tweet.
+    */
   def computeSentiment(text: String): String = {
     val (_, sentiment) = extractSentiments(text)
       .maxBy { case (sentence, _) => sentence.length }
@@ -30,7 +36,7 @@ object CoreNLPSentimentAnalyzer {
     * We are normalizing sentiment as we need to be consistent with the polarity value with MLlib and for visualization.
     *
     * @param sentiment polarity of the tweet
-    * @return normalized to either -1, 0 or 1 based on tweet being negative, neutral and positive.
+    * @return normalized to either negative, neutral or positive.
     */
   def normalizeCoreNLPSentiment(sentiment: Double): String = {
     sentiment match {
@@ -42,6 +48,11 @@ object CoreNLPSentimentAnalyzer {
     }
   }
 
+  /**
+    * Extracts the sentiment from the given text
+    * @param text the tweet's text
+    * @return a List of String's tuple which contains the tweet's text and the sentiment
+    */
   def extractSentiments(text: String): List[(String, String)] = {
     val annotation: Annotation = pipeline.process(text)
     val sentences = annotation.get(classOf[CoreAnnotations.SentencesAnnotation])
@@ -51,6 +62,7 @@ object CoreNLPSentimentAnalyzer {
       .toList
   }
 
+  /*
   def computeWeightedSentiment(tweet: String): String = {
 
     val annotation = pipeline.process(tweet)
@@ -74,4 +86,5 @@ object CoreNLPSentimentAnalyzer {
 
     normalizeCoreNLPSentiment(weightedSentiment)
   }
+  */
 }

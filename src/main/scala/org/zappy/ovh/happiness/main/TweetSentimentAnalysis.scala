@@ -1,5 +1,6 @@
 package org.zappy.ovh.happiness.main
 
+import java.io.{BufferedWriter, File, FileWriter}
 import java.text.SimpleDateFormat
 import java.util.{Calendar, Date}
 
@@ -26,7 +27,7 @@ object TweetSentimentAnalysis extends App {
   val dateOneWeekAgo = new SimpleDateFormat("yyyy-MM-dd").format(new Date(oneWeekAgo))
 
   //With Twitter4J, we call the Twitter API
-  logger.info("Setting up the Twitter wrapper...")
+  logger.debug("Setting up the Twitter wrapper...")
   val cb = new ConfigurationBuilder()
   cb.setDebugEnabled(PropertiesLoader.debugTwitter4j)
     .setOAuthConsumerKey(PropertiesLoader.consumerKey)
@@ -35,9 +36,10 @@ object TweetSentimentAnalysis extends App {
     .setOAuthAccessTokenSecret(PropertiesLoader.accessTokenSecret)
   val twitter = new TwitterFactory(cb.build()).getInstance()
 
-  logger.info("Setting up the Spark environment...")
+  logger.debug("Setting up the Spark environment...")
   //Get the Spark environment in order to call the ML model
   val sc = SparkUtils.createSparkContext()
+  sc.setLogLevel(Level.WARN.toString)
   //Load Naive Bayes Model from the path specified inb the configuration file
   val naiveBayesModel = NaiveBayesModel.load(sc, PropertiesLoader.naiveBayesModelPath)
   //Load the stop words list (one for each languages)
@@ -50,23 +52,35 @@ object TweetSentimentAnalysis extends App {
   val tweets = twitter.search(query).getTweets
   logger.info(tweets.size() + " tweets were find !")
 
+  //Writing the results to file
+  val timestamp = new SimpleDateFormat("yyyyMMddHHmmss").format(java.time.Instant.now().toEpochMilli)
+  val file = new File("sentiment_results_"+timestamp+".txt")
+  val bw = new BufferedWriter(new FileWriter(file))
+
   //Show numbers of tweets by country for the current day
   val tweetsToday = tweets.filter(_.getCreatedAt.toString <= Calendar.getInstance().getTime.toString)
   logger.info("For today, we have : ")
+  bw.write("For today, we have : \n")
   tweetsToday.groupBy(_.getLang).foreach(
-    e =>
+    e =>{
       logger.info("For the language : " + e._1 + " we have " + e._2.length + " tweets !")
+      bw.write("For the language : " + e._1 + " we have " + e._2.length + " tweets !\n")
+    }
   )
 
   //Show sentiment for the day
   logger.info("The sentiments for today are :")
+  bw.write("The sentiments for today are :\n")
   tweetsToday.foreach(
     e =>
       if (e.getLang == "en") {
         val sentiment = CoreNLPSentimentAnalyzer.computeSentiment(e.getText)
         logger.info("The tweet's content : " + e.getText)
-        logger.info("The sentiment found : " + sentiment)
-        logger.info("The sentiment found : " + MLlibSentimentAnalyzer.computeSentiment(e.getText, stopWordsList, naiveBayesModel ))
+        bw.write("The tweet's content : " + e.getText+"\n")
+        logger.info("The sentiment found by StanfordNLP : " + sentiment+"\n")
+        bw.write("The sentiment found by StanfordNLP : " + sentiment+"\n")
+        logger.info("The sentiment found by the Naive Bayes model : " + MLlibSentimentAnalyzer.computeSentiment(e.getText, stopWordsList, naiveBayesModel )+"\n")
+        bw.write("The sentiment found by the Naive Bayes model : " + MLlibSentimentAnalyzer.computeSentiment(e.getText, stopWordsList, naiveBayesModel )+"\n")
       }
   )
 
@@ -87,6 +101,8 @@ object TweetSentimentAnalysis extends App {
           weekSentiment = e._1
         }
     )
-  logger.info("The tendency for the week is : " + weekSentiment)
+  logger.info("The tendency for last week is : " + weekSentiment)
+  bw.write("The tendency for last week is : " + weekSentiment+"\n")
+  bw.close()
   logger.info("End of search and analysis")
 }

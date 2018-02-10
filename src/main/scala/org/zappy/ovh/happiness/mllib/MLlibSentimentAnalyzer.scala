@@ -13,7 +13,7 @@ object MLlibSentimentAnalyzer {
     * @param text          -- Complete text of a tweet.
     * @param stopWordsList -- Broadcast variable for list of stop words to be removed from the tweets.
     * @param model         -- Naive Bayes Model of the trained data.
-    * @return Int Sentiment of the tweet.
+    * @return String Sentiment of the tweet.
     */
   def computeSentiment(text: String, stopWordsList: Broadcast[List[String]], model: NaiveBayesModel): String = {
     val tweetInWords: Seq[String] = getBarebonesTweetText(text, stopWordsList.value)
@@ -26,7 +26,7 @@ object MLlibSentimentAnalyzer {
     * We are normalizing sentiment as we need to be consistent with the polarity value with Core NLP and for visualization.
     *
     * @param sentiment polarity of the tweet
-    * @return normalized to either -1, 0 or 1 based on tweet being negative, neutral and positive.
+    * @return normalized to either negative, neutral or positive.
     */
   def normalizeMLlibSentiment(sentiment: Double): String = {
     sentiment match {
