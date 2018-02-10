@@ -13,7 +13,6 @@ You need to have :
 - sbt
 - an HDFS cluster with YARN
 - Spark
-
 installed.
 
 # How to use
