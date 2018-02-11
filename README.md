@@ -17,7 +17,10 @@ installed.
 
 # How to use
 Just launch the bootstrap.sh script !
-It will create the Naive Bayes model and then run the analysis.
+You have two options for the script :
+- `./bootstrap.sh all` will build the sbt project, unzip it, and then create the ML model and finally launch the program
+- `./bootstrap.sh run` will only run the program
+
 The results as long as the tweets can be found in the `sentiment_results_AAAA-MM-DD.txt`
 You may encouter an issue with twitter4J, it happens and there's no fix. You just have to launch the application again :/
 
